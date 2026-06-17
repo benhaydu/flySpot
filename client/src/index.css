@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --bg: #1a1c2c;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --border: #2a3f6a;
+  --river: #3d9be9;
+  --river-glow: #3d9be966;
+  --river-hover: #63b8ff;
+  --river-selected: #f8d030;
+  --river-selected-glow: #f8d03044;
+  --text-primary: #f4f4f4;
+  --text-secondary: #a8c5da;
+  --text-muted: #4a6f8a;
+  --accent-green: #56c02b;
+  --accent-amber: #f8d030;
+  --accent-red: #e83232;
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-display: 'Press Start 2P', monospace;
+  --font-mono: 'Press Start 2P', monospace;
+  --font-body: 'Press Start 2P', monospace;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-pixel);
+  image-rendering: pixelated;
+}
+
+/* Pixelate the map canvas for retro effect */
+.maplibregl-canvas {
+  cursor: crosshair !important;
+  image-rendering: pixelated;
+}
+
+/* MapLibre controls */
+.maplibregl-ctrl-attrib {
+  opacity: 0.35 !important;
+  font-size: 8px !important;
+  font-family: var(--font-pixel) !important;
+  background: var(--surface) !important;
+  color: var(--text-muted) !important;
+}
+
+.maplibregl-ctrl-group {
+  background: var(--surface) !important;
+  border: 3px solid var(--bg) !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 0 0 3px #f4f4f4, inset 0 0 0 6px var(--bg) !important;
+}
+
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+  border-bottom: 2px solid var(--border) !important;
+  border-radius: 0 !important;
+}
+
+.maplibregl-ctrl-group button:last-child {
+  border-bottom: none !important;
+}
+
+.maplibregl-ctrl-icon {
+  filter: invert(1) opacity(0.7) !important;
+}
+
+.maplibregl-ctrl-scale {
+  background: var(--surface) !important;
+  border: 3px solid var(--bg) !important;
+  box-shadow: inset 0 0 0 3px #f4f4f4, inset 0 0 0 6px var(--bg) !important;
+  border-radius: 0 !important;
+  font-family: var(--font-pixel) !important;
+  font-size: 7px !important;
+  color: var(--text-secondary) !important;
+  padding: 2px 4px !important;
+}
+
+/* Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 0; }
