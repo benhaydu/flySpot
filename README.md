@@ -26,7 +26,8 @@ cd ../server && npm install
 
 # Configure environment
 cp server/.env.example server/.env
-# Fill in MONGO_URI and JWT_SECRET
+# Fill in MONGODB_URI (your MongoDB connection string) and
+# JWT_SECRET (any long random string, used to sign auth tokens)
 
 # Seed data
 cd server
@@ -38,4 +39,4 @@ cd client && npm run dev
 cd server && npm run dev
 ```
 
-Client runs on `http://localhost:5173`, server on `http://localhost:3000`.
+Client runs on `http://localhost:5173`, server on `http://localhost:3001`.

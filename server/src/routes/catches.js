@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { logCatch, getMyCatches, getCatchesByRiver } from '../controllers/catchController.js';
 import { requireAuth } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(asyncHandler(requireAuth));
 
-router.post('/',              logCatch);
-router.get('/',               getMyCatches);
-router.get('/river/:name',    getCatchesByRiver);
+router.post('/',              asyncHandler(logCatch));
+router.get('/',               asyncHandler(getMyCatches));
+router.get('/river/:name',    asyncHandler(getCatchesByRiver));
 
 export default router;

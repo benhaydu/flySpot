@@ -25,12 +25,13 @@ import {
   upsertRiver,
   deleteRiver,
 } from '../controllers/riverController.js'
+import { asyncHandler } from '../middleware/asyncHandler.js'
 
 const router = Router()
 
-router.get('/',          getRivers)    // List all saved rivers
-router.get('/:osmId',    getRiver)     // Get one river by OSM ID
-router.post('/',         upsertRiver)  // Create or update a river
-router.delete('/:osmId', deleteRiver)  // Delete saved river data
+router.get('/',          asyncHandler(getRivers))    // List all saved rivers
+router.get('/:osmId',    asyncHandler(getRiver))     // Get one river by OSM ID
+router.post('/',         asyncHandler(upsertRiver))  // Create or update a river
+router.delete('/:osmId', asyncHandler(deleteRiver))  // Delete saved river data
 
 export default router

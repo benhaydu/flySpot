@@ -6,11 +6,12 @@ const signToken = (id) =>
   jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
 export const register = async (req, res) => {
-  const { email, password } = req.body;
+  const {password } = req.body;
+  const email = req.body.email?.toLowerCase().trim();
   if (!email || !password)
     return res.status(400).json({ error: 'Email and password are required' });
-  if (password.length < 6)
-    return res.status(400).json({ error: 'Password needs to be at least 6 characters' });
+  if (password.length < 8)
+    return res.status(400).json({ error: 'Password needs to be at least 8 characters' });
 
   const exists = await User.findOne({ email });
   if (exists)

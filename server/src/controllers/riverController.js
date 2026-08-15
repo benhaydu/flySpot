@@ -29,12 +29,8 @@ import River from '../models/River.js'
  * Returns all rivers the user has saved (bookmarked, noted, etc.)
  */
 export async function getRivers(_req, res) {
-  try {
-    const rivers = await River.find()
-    res.json(rivers)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  const rivers = await River.find()
+  res.json(rivers)
 }
 
 /**
@@ -44,13 +40,9 @@ export async function getRivers(_req, res) {
  * means the user hasn't interacted with it yet).
  */
 export async function getRiver(req, res) {
-  try {
-    const river = await River.findOne({ osmId: Number(req.params.osmId) })
-    if (!river) return res.status(404).json({ error: 'Not found' })
-    res.json(river)
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  const river = await River.findOne({ osmId: Number(req.params.osmId) })
+  if (!river) return res.status(404).json({ error: 'Not found' })
+  res.json(river)
 }
 
 /**
@@ -90,10 +82,6 @@ export async function upsertRiver(req, res) {
  * (it comes from OSM, not MongoDB) — this just clears the user's notes/bookmark.
  */
 export async function deleteRiver(req, res) {
-  try {
-    await River.findOneAndDelete({ osmId: Number(req.params.osmId) })
-    res.json({ success: true })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
+  await River.findOneAndDelete({ osmId: Number(req.params.osmId) })
+  res.json({ success: true })
 }
