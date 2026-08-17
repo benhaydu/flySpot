@@ -1,10 +1,11 @@
 
 
-import React, { useState, useEffect, useCallback } from 'react'
-import MapView    from './components/MapView.jsx'
-import RiverPanel from './components/RiverPanel.jsx'
-import Pokedex    from './components/Pokedex.jsx'
-import LogCatch   from './components/LogCatch.jsx'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import MapView     from './components/MapView.jsx'
+import RiverPanel  from './components/RiverPanel.jsx'
+import Pokedex     from './components/Pokedex.jsx'
+import LogCatch    from './components/LogCatch.jsx'
+import RiverSearch from './components/RiverSearch.jsx'
 import { fetchWaterways } from './api/waterways.js'
 import { useAuth } from './hooks/useAuth';
 import AuthPage from './components/AuthPage';
@@ -29,10 +30,12 @@ export default function App() {
   //                    highlighting the whole river and calculating total length)
   const [selectedFeature, setSelectedFeature] = useState(null)
 
-  // Summary counts shown in the top-bar stat chips.
-  const [stats, setStats]             = useState(null)
   const [showPokedex, setShowPokedex]   = useState(false)
   const [showLogCatch, setShowLogCatch] = useState(false)
+
+  // The live MapLibre map instance, handed up from MapView via onMapReady.
+  // Used by handleSearchSelect to fitBounds() when a search result is picked.
+  const mapInstanceRef = useRef(null)
 
   const { token, saveToken, logout } = useAuth()
 
@@ -47,15 +50,10 @@ export default function App() {
     setLoadingMsg('Querying OpenStreetMap…')
     setError(null)
 
-    fetchWaterways((msg) => setLoadingMsg(msg))
-      .then((geojson) => {
+      fetchWaterways((msg) => setLoadingMsg(msg))
+        .then((geojson) => {
         setWaterways(geojson)
         setLoadingMsg(null)
-
-        const rivers  = geojson.features.filter(f => f.properties.waterway === 'river').length
-        const streams = geojson.features.filter(f => ['stream', 'creek'].includes(f.properties.waterway)).length
-        const named   = geojson.features.filter(f => f.properties.name).length
-        setStats({ total: geojson.features.length, rivers, streams, named })
       })
       .catch((err) => {
         console.error(err)
@@ -64,6 +62,31 @@ export default function App() {
       })
   }, [token])
 
+  // Search index: one entry per named river/stream group, built once after
+  // the waterway data loads. Each entry carries the combined bounding box
+  // across all of that group's segments, for RiverSearch's fitBounds call.
+  const riverIndex = useMemo(() => {
+    if (!waterways) return []
+    const byGroup = new Map()
+    for (const f of waterways.features) {
+      const { riverGroup, name } = f.properties
+      if (!name) continue
+      let entry = byGroup.get(riverGroup)
+      if (!entry) {
+        entry = { riverGroup, name, bbox: [Infinity, Infinity, -Infinity, -Infinity], features: [] }
+        byGroup.set(riverGroup, entry)
+      }
+      entry.features.push(f)
+      for (const [lng, lat] of f.geometry.coordinates) {
+        if (lng < entry.bbox[0]) entry.bbox[0] = lng
+        if (lat < entry.bbox[1]) entry.bbox[1] = lat
+        if (lng > entry.bbox[2]) entry.bbox[2] = lng
+        if (lat > entry.bbox[3]) entry.bbox[3] = lat
+      }
+    }
+    return [...byGroup.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [waterways])
+
   // ── Callbacks ──────────────────────────────────────────────────────────────
 
   // Called by MapView when the user clicks a river segment.
@@ -71,6 +94,19 @@ export default function App() {
   // which would cause MapView to re-run effects unnecessarily.
   const handleSelectFeature = useCallback((feature) => {
     setSelectedFeature(feature)
+  }, [])
+
+  // Called by RiverSearch when the user picks a result. Flies the map to
+  // that river's bounding box and opens its panel, same as a real click.
+  const handleSearchSelect = useCallback((entry) => {
+    const map = mapInstanceRef.current
+    if (map) {
+      map.fitBounds(
+        [[entry.bbox[0], entry.bbox[1]], [entry.bbox[2], entry.bbox[3]]],
+        { padding: 80, duration: 600, maxZoom: 13 }
+      )
+    }
+    setSelectedFeature({ representative: entry.features[0], group: entry.features })
   }, [])
 
   if (!token) return <AuthPage onSuccess={saveToken} />
@@ -89,15 +125,17 @@ export default function App() {
       <MapView
         waterways={waterways}
         onSelectFeature={handleSelectFeature}
-        selectedIds={selectedFeature?.group?.map(f => f.properties.id) ?? []}
-      />
+        selectedRiverGroup={selectedFeature?.representative?.properties?.riverGroup ?? null}
+        panelOpen={!!selectedFeature}
+        onMapReady={(map) => { mapInstanceRef.current = map }}
+        />
 
       {/* ── Top bar ─────────────────────────────────────────────────────────
           Floats above the map. Contains the app logo and stat chips.
           pointerEvents: none so clicks pass through to the map underneath,
           then re-enabled on individual interactive children.
       ───────────────────────────────────────────────────────────────────── */}
-      <div style={styles.topBar}>
+      <div style={{ ...styles.topBar, paddingRight: selectedFeature ? 380 : 56 }}>
         <div style={styles.logo}>
           <div style={styles.logoTitle}>▶ TOWN MAP</div>
           <div style={styles.logoSub}>Vancouver Island</div>
@@ -105,15 +143,7 @@ export default function App() {
           <button onClick={logout} style={styles.logoutBtn}>LOGOUT</button>
         </div>
 
-        {/* Only renders after the waterway data has loaded */}
-        {stats && (
-          <div style={styles.statsBar}>
-            <StatChip label="WAYS"    value={stats.total.toLocaleString()} />
-            <StatChip label="RIVERS"  value={stats.rivers.toLocaleString()} />
-            <StatChip label="STREAMS" value={stats.streams.toLocaleString()} />
-            <StatChip label="NAMED"   value={stats.named.toLocaleString()} />
-          </div>
-        )}
+        {waterways && <RiverSearch riverIndex={riverIndex} onSelect={handleSearchSelect} />}
       </div>
 
       {/* ── Loading overlay ──────────────────────────────────────────────────
@@ -193,18 +223,6 @@ export default function App() {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 /**
- * StatChip — a single labelled number in the top-bar stats row.
- * e.g.  "1 243"
- *        RIVERS
- */
-function StatChip({ label, value }) {
-  return (
-    <div style={styles.chip}>
-      <div style={styles.chipValue}>{value}</div>
-      <div style={styles.chipLabel}>{label}</div>
-    </div>
-  )
-}
 
 /**
  * LegendRow — one row in the map legend.
@@ -235,6 +253,7 @@ const styles = {
     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
     display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
     padding: '12px 56px 12px 16px', pointerEvents: 'none', gap: '16px',
+    transition: 'padding-right 0.15s steps(4)',
   },
   logo:       { ...pixelPanel, padding: '10px 14px', pointerEvents: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' },
   pokedexBtn: { fontFamily: 'var(--font-pixel)', fontSize: '6px', color: 'var(--river-selected)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, marginTop: '4px' },
@@ -249,10 +268,6 @@ const styles = {
   },
   logoTitle: { fontFamily: 'var(--font-pixel)', fontSize: '11px', color: 'var(--river-selected)', lineHeight: 1.6 },
   logoSub:   { fontFamily: 'var(--font-pixel)', fontSize: '7px',  color: 'var(--text-secondary)', marginTop: '4px' },
-  statsBar:  { display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' },
-  chip:      { ...pixelPanel, padding: '6px 10px', textAlign: 'center', pointerEvents: 'auto' },
-  chipValue: { fontFamily: 'var(--font-pixel)', fontSize: '10px', color: 'var(--river)', lineHeight: 1.6 },
-  chipLabel: { fontFamily: 'var(--font-pixel)', fontSize: '6px',  color: 'var(--text-muted)', marginTop: '3px' },
   loadingOverlay: {
     position: 'absolute', inset: 0, display: 'flex',
     alignItems: 'center', justifyContent: 'center',

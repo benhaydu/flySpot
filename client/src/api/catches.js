@@ -27,3 +27,6 @@ export const getCatchesByRiver = (riverGroup) =>
   fetch(`${BASE}/river/${encodeURIComponent(riverGroup)}`, {
     headers: authHeaders(),
   }).then(handleResponse);
+
+  export const getCatchStats = () =>
+  fetch(`${BASE}/stats`, { headers: authHeaders() }).then(handleResponse);

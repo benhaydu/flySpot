@@ -1,19 +1,23 @@
 import { useState, useEffect } from 'react';
 import { getAllSpecies } from '../api/fish';
-import { getMyCatches } from '../api/catches';
+import { getMyCatches, getCatchStats } from '../api/catches';
 import FishSprite from './FishSprite.jsx';
+import ActivityHeatmap from './ActivityHeatmap.jsx';
 
 export default function Pokedex({ onClose }) {
+  const [tab, setTab]           = useState('species'); // 'species' | 'stats'
   const [species, setSpecies]   = useState([]);
   const [caught, setCaught]     = useState(new Set());
+  const [stats, setStats]       = useState(null);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
 
   useEffect(() => {
-    Promise.all([getAllSpecies(), getMyCatches()])
-      .then(([allSpecies, myCatches]) => {
+    Promise.all([getAllSpecies(), getMyCatches(), getCatchStats()])
+      .then(([allSpecies, myCatches, catchStats]) => {
         setSpecies(allSpecies);
         setCaught(new Set(myCatches.map(c => c.speciesCode)));
+        setStats(catchStats);
         setLoading(false);
       })
       .catch((err) => {
@@ -38,11 +42,26 @@ export default function Pokedex({ onClose }) {
           <button onClick={onClose} style={s.closeBtn}>✕ CLOSE</button>
         </div>
 
+        <div style={s.tabs}>
+          <button
+            style={{ ...s.tabBtn, ...(tab === 'species' ? s.tabBtnActive : {}) }}
+            onClick={() => setTab('species')}
+          >
+            SPECIES
+          </button>
+          <button
+            style={{ ...s.tabBtn, ...(tab === 'stats' ? s.tabBtnActive : {}) }}
+            onClick={() => setTab('stats')}
+          >
+            STATS
+          </button>
+        </div>
+
         {loading ? (
           <div style={s.loading}>LOADING...</div>
-            ) : error ? (
+        ) : error ? (
           <div style={s.loading}>{error}</div>
-            ) : (
+        ) : tab === 'species' ? (
           <div style={s.grid}>
             {species.map(sp => {
               const isCaught = caught.has(sp.code);
@@ -55,9 +74,50 @@ export default function Pokedex({ onClose }) {
               );
             })}
           </div>
+        ) : (
+          <div style={s.statsPane}>
+            <div style={s.statsGrid}>
+              <StatBlock label="TOTAL CATCHES" value={stats.totalCatches} />
+              <StatBlock label="SPECIES CAUGHT" value={`${stats.uniqueSpecies}/${species.length}`} />
+              <StatBlock
+                label="LONGEST CATCH"
+                value={stats.longest ? `${stats.longest.length}cm` : '—'}
+                sub={stats.longest?.speciesName}
+              />
+              <StatBlock
+                label="HEAVIEST CATCH"
+                value={stats.heaviest ? `${stats.heaviest.weight}kg` : '—'}
+                sub={stats.heaviest?.speciesName}
+              />
+              <StatBlock
+                label="TOP RIVER"
+                value={stats.topRiver ? titleCase(stats.topRiver.riverGroup) : '—'}
+                sub={stats.topRiver ? `${stats.topRiver.count} catches` : null}
+              />
+            </div>
+
+            <div style={s.heatmapSection}>
+              <div style={s.heatmapLabel}>▶ LAST 12 WEEKS</div>
+              <ActivityHeatmap activity={stats.activity} />
+            </div>
+          </div>
         )}
 
       </div>
+    </div>
+  );
+}
+
+function titleCase(str) {
+  return str.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function StatBlock({ label, value, sub }) {
+  return (
+    <div style={s.statBlock}>
+      <div style={s.statBlockLabel}>{label}</div>
+      <div style={s.statBlockValue}>{value}</div>
+      {sub && <div style={s.statBlockSub}>{sub}</div>}
     </div>
   );
 }
@@ -106,6 +166,18 @@ const s = {
     border: '4px solid #f4f4f4',
     padding: '6px 10px', cursor: 'pointer',
   },
+  tabs: {
+    display: 'flex', gap: '2px',
+    padding: '10px 20px 0', borderBottom: '4px solid var(--border)',
+  },
+  tabBtn: {
+    background: 'var(--surface2)', color: 'var(--text-muted)',
+    fontFamily: 'var(--font-pixel)', fontSize: '7px',
+    border: 'none', padding: '10px 16px', cursor: 'pointer',
+  },
+  tabBtnActive: {
+    background: 'var(--surface)', color: 'var(--river-selected)',
+  },
   loading: {
     fontFamily: 'var(--font-pixel)', fontSize: '8px',
     color: 'var(--text-muted)', padding: '40px',
@@ -137,5 +209,33 @@ const s = {
   name: {
     fontFamily: 'var(--font-pixel)', fontSize: '6px',
     color: 'var(--text-primary)', lineHeight: 1.6,
+  },
+  statsPane: {
+    padding: '20px', overflowY: 'auto',
+    display: 'flex', flexDirection: 'column', gap: '24px',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+    gap: '10px',
+  },
+  statBlock: {
+    ...pixelBorder, background: 'var(--surface2)',
+    padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px',
+  },
+  statBlockLabel: {
+    fontFamily: 'var(--font-pixel)', fontSize: '6px', color: 'var(--text-muted)', letterSpacing: '1px',
+  },
+  statBlockValue: {
+    fontFamily: 'var(--font-pixel)', fontSize: '11px', color: 'var(--river-selected)',
+  },
+  statBlockSub: {
+    fontFamily: 'var(--font-pixel)', fontSize: '6px', color: 'var(--text-secondary)',
+  },
+  heatmapSection: {
+    display: 'flex', flexDirection: 'column', gap: '10px',
+  },
+  heatmapLabel: {
+    fontFamily: 'var(--font-pixel)', fontSize: '7px', color: 'var(--river-selected)', letterSpacing: '1px',
   },
 };
