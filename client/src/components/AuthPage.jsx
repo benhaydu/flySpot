@@ -8,16 +8,20 @@ export default function AuthPage({ onSuccess }) {
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    const fn = isLogin ? login : register;
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+  const fn = isLogin ? login : register;
+  try {
     const data = await fn(email, password);
-    setLoading(false);
-    if (data.error) return setError(data.error);
     onSuccess(data.token);
-  };
+  } catch (err) {
+    setError(err.message || 'Something went wrong. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={s.root}>

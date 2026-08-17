@@ -2,20 +2,27 @@ import { useState, useEffect } from 'react';
 import { getAllSpecies } from '../api/fish';
 import { logCatch } from '../api/catches';
 
-export default function LogCatch({ selectedRiver, onClose, onSuccess }) {
+
+
+
+export default function LogCatch({ osmId, riverName, onClose, onSuccess }) {
   const [species, setSpecies]       = useState([]);
   const [search, setSearch]         = useState('');
   const [selectedSpecies, setSelectedSpecies] = useState(null);
-  const [river, setRiver]           = useState(selectedRiver || '');
   const [weight, setWeight]         = useState('');
   const [length, setLength]         = useState('');
   const [notes, setNotes]           = useState('');
-  const [caughtAt, setCaughtAt]     = useState(new Date().toISOString().split('T')[0]);
+  const [caughtAt, setCaughtAt]     = useState(todayLocalISODate());
   const [error, setError]           = useState('');
   const [loading, setLoading]       = useState(false);
 
-  useEffect(() => {
-    getAllSpecies().then(setSpecies);
+    useEffect(() => {
+      getAllSpecies()
+    .then(setSpecies)
+    .catch((err) => {
+      console.error(err);
+      setError(err.message || 'Failed to load species list.');
+    });
   }, []);
 
   const filtered = species.filter(s =>
@@ -25,22 +32,24 @@ export default function LogCatch({ selectedRiver, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedSpecies) return setError('Please select a species');
-    if (!river.trim())    return setError('Please enter a river name');
 
     setLoading(true);
-    const data = await logCatch({
-      speciesCode: selectedSpecies.code,
-      speciesName: selectedSpecies.name,
-      riverName:   river.trim(),
-      weight:      weight ? parseFloat(weight) : null,
-      length:      length ? parseFloat(length) : null,
-      notes,
-      caughtAt,
-    });
-    setLoading(false);
-
-    if (data.error) return setError(data.error);
-    onSuccess(data);
+    try {
+      const data = await logCatch({
+        speciesCode: selectedSpecies.code,
+        speciesName: selectedSpecies.name,
+        osmId,
+        weight: weight ? parseFloat(weight) : null,
+        length: length ? parseFloat(length) : null,
+        notes,
+        caughtAt,
+      });
+      onSuccess(data);
+    } catch (err) {
+      setError(err.message || 'Failed to log catch');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -93,16 +102,11 @@ export default function LogCatch({ selectedRiver, onClose, onSuccess }) {
             )}
           </div>
 
-          {/* River */}
+          {/* River — read-only, comes from whichever river is currently selected */}
           <div style={s.field}>
             <label style={s.label}>RIVER</label>
-            <div style={s.inputWrap}>
-              <input
-                style={s.input}
-                value={river}
-                onChange={e => setRiver(e.target.value)}
-                placeholder="e.g. Campbell River"
-              />
+            <div style={s.selectedSpecies}>
+              <span style={s.selectedName}>{riverName}</span>
             </div>
           </div>
 
@@ -124,13 +128,13 @@ export default function LogCatch({ selectedRiver, onClose, onSuccess }) {
             <div style={{ ...s.field, flex: 1 }}>
               <label style={s.label}>WEIGHT (kg)</label>
               <div style={s.inputWrap}>
-                <input style={s.input} type="number" step="0.1" value={weight} onChange={e => setWeight(e.target.value)} placeholder="0.0" />
+                <input style={s.input} type="number" step="0.1" min="0" value={weight} onChange={e => setWeight(e.target.value)} placeholder="0.0" />
               </div>
             </div>
             <div style={{ ...s.field, flex: 1 }}>
               <label style={s.label}>LENGTH (cm)</label>
               <div style={s.inputWrap}>
-                <input style={s.input} type="number" step="0.1" value={length} onChange={e => setLength(e.target.value)} placeholder="0.0" />
+                <input style={s.input} type="number" step="0.1" min="0" value={length} onChange={e => setLength(e.target.value)} placeholder="0.0" />
               </div>
             </div>
           </div>
@@ -158,6 +162,15 @@ export default function LogCatch({ selectedRiver, onClose, onSuccess }) {
       </div>
     </div>
   );
+}
+// client/src/components/LogCatch.jsx
+
+function todayLocalISODate() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 const pixelBorder = {

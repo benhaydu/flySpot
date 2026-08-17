@@ -9,6 +9,6 @@ router.use(asyncHandler(requireAuth));
 
 router.post('/',              asyncHandler(logCatch));
 router.get('/',               asyncHandler(getMyCatches));
-router.get('/river/:name',    asyncHandler(getCatchesByRiver));
+router.get('/river/:riverGroup', asyncHandler(getCatchesByRiver));
 
 export default router;

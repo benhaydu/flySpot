@@ -40,10 +40,12 @@ async function fetchPage(startIndex) {
   });
 
   const res = await fetch(`${WFS_URL}?${params}`);
-  if (!res.ok) throw new Error(`WFS error: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`WFS error: ${res.status} ${body}`.trim());
+  }
   return res.json();
 }
-
 async function seed() {
   await connectDB();
 
@@ -98,7 +100,11 @@ async function seed() {
   }
 
   console.log('Done!');
-  mongoose.disconnect();
+  await mongoose.disconnect();
 }
 
-seed().catch(err => { console.error(err); mongoose.disconnect(); });
+seed().catch(async (err) => {
+  console.error(err);
+  await mongoose.disconnect().catch(() => {});
+  process.exitCode = 1;
+});

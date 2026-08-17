@@ -1,21 +1,29 @@
-const BASE = 'http://localhost:3001/api/catches';
+const BASE = '/api/catches';
 
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${localStorage.getItem('token')}`,
 });
 
+async function handleResponse(res) {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export const logCatch = (data) =>
   fetch(BASE, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(data),
-  }).then(r => r.json());
+  }).then(handleResponse);
 
 export const getMyCatches = () =>
-  fetch(BASE, { headers: authHeaders() }).then(r => r.json());
+  fetch(BASE, { headers: authHeaders() }).then(handleResponse);
 
-export const getCatchesByRiver = (riverName) =>
-  fetch(`${BASE}/river/${encodeURIComponent(riverName)}`, {
+export const getCatchesByRiver = (riverGroup) =>
+  fetch(`${BASE}/river/${encodeURIComponent(riverGroup)}`, {
     headers: authHeaders(),
-  }).then(r => r.json());
+  }).then(handleResponse);

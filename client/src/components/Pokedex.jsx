@@ -7,12 +7,18 @@ export default function Pokedex({ onClose }) {
   const [species, setSpecies]   = useState([]);
   const [caught, setCaught]     = useState(new Set());
   const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
 
   useEffect(() => {
     Promise.all([getAllSpecies(), getMyCatches()])
       .then(([allSpecies, myCatches]) => {
         setSpecies(allSpecies);
         setCaught(new Set(myCatches.map(c => c.speciesCode)));
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(err.message || 'Failed to load Pokédex data.');
         setLoading(false);
       });
   }, []);
@@ -34,7 +40,9 @@ export default function Pokedex({ onClose }) {
 
         {loading ? (
           <div style={s.loading}>LOADING...</div>
-        ) : (
+            ) : error ? (
+          <div style={s.loading}>{error}</div>
+            ) : (
           <div style={s.grid}>
             {species.map(sp => {
               const isCaught = caught.has(sp.code);

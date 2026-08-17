@@ -1,37 +1,11 @@
-/**
- * App.jsx — Root Component
- *
- * This is the top of the React component tree. Every piece of UI on screen
- * either lives here or is a child of something rendered here.
- *
- * RESPONSIBILITY:
- *  - Owns all "global" state (waterway data, selected river, loading status)
- *  - Fetches OSM data once on first render via the Overpass API
- *  - Passes data and callbacks down to child components as props
- *
- * DATA FLOW (one-way, top-down):
- *
- *   App  ──waterways──────────────▶  MapView
- *        ──selectedIds────────────▶  MapView
- *        ◀─onSelectFeature────────   MapView   (user clicks a river)
- *
- *   App  ──feature, group─────────▶  RiverPanel
- *        ◀─onClose────────────────   RiverPanel
- *
- * STATE:
- *  waterways      — the full GeoJSON FeatureCollection from OSM (set once)
- *  selectedFeature — { representative: Feature, group: Feature[] } | null
- *  stats          — counts shown in the top bar chips
- *  loadingMsg     — string shown in the loading overlay, or null
- *  error          — error string shown in the error bar, or null
- */
+
 
 import React, { useState, useEffect, useCallback } from 'react'
 import MapView    from './components/MapView.jsx'
 import RiverPanel from './components/RiverPanel.jsx'
 import Pokedex    from './components/Pokedex.jsx'
 import LogCatch   from './components/LogCatch.jsx'
-import { fetchVancouverIslandWaterways } from './api/overpass.js'
+import { fetchWaterways } from './api/waterways.js'
 import { useAuth } from './hooks/useAuth';
 import AuthPage from './components/AuthPage';
 
@@ -73,7 +47,7 @@ export default function App() {
     setLoadingMsg('Querying OpenStreetMap…')
     setError(null)
 
-    fetchVancouverIslandWaterways((msg) => setLoadingMsg(msg))
+    fetchWaterways((msg) => setLoadingMsg(msg))
       .then((geojson) => {
         setWaterways(geojson)
         setLoadingMsg(null)
@@ -193,11 +167,12 @@ export default function App() {
       {showPokedex && <Pokedex onClose={() => setShowPokedex(false)} />}
 
       {showLogCatch && (
-        <LogCatch
-          selectedRiver={selectedFeature?.representative?.properties?.name || ''}
-          onClose={() => setShowLogCatch(false)}
-          onSuccess={() => setShowLogCatch(false)}
-        />
+          <LogCatch
+            osmId={selectedFeature?.representative?.properties?.id}
+            riverName={selectedFeature?.representative?.properties?.name || 'Unnamed Waterway'}
+            onClose={() => setShowLogCatch(false)}
+            onSuccess={() => setShowLogCatch(false)}
+          />
       )}
 
 

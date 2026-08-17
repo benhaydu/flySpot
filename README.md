@@ -1,5 +1,7 @@
 # flySpot
 
+![CI](https://github.com/benhaydu/flySpot/actions/workflows/ci.yml/badge.svg)
+
 An interactive fishing map for Vancouver Island. Click any river to see live weather, BC fishing regulations, available species, and your logged catches — all in a pixel-art Pokédex-style UI.
 
 ## Features

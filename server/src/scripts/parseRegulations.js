@@ -177,4 +177,8 @@ async function main() {
   mongoose.disconnect()
 }
 
-main().catch(err => { console.error(err); mongoose.disconnect() })
+main().catch(async (err) => {
+  console.error(err)
+  await mongoose.disconnect().catch(() => {})
+  process.exitCode = 1
+})

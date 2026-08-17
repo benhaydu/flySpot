@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:3001/api'
+const BASE = '/api'
 
 export async function getRegulationsByRiver(riverName) {
   const res = await fetch(`${BASE}/regulations/${encodeURIComponent(riverName)}`)

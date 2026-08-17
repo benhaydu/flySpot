@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { calcLengthKm } from '../api/overpass.js'
+import { calcLengthKm } from '../utils/geo.js'
 import { getCatchesByRiver } from '../api/catches.js'
 import { getSpeciesByRiver } from '../api/fish.js'
 import { getRegulationsByRiver } from '../api/regulations.js'
@@ -32,18 +32,25 @@ export default function RiverPanel({ feature, group, onClose, onLogCatch }) {
   const [regulations, setRegulations]           = useState(undefined)
   const [error, setError]                       = useState(null)
 
-  // Fetch catches and available species when the selected river changes
+  // Clear any stale error message whenever a different river is selected
   useEffect(() => {
-    if (!feature?.properties?.name) return
-    const name = feature.properties.name
-    Promise.all([
-      getCatchesByRiver(name),
-      getSpeciesByRiver(name),
-    ]).then(([riverCatches, riverSpecies]) => {
-      setCatches(riverCatches)
-      setAvailableSpecies(riverSpecies.speciesList || [])
-    })
+    setError(null)
   }, [feature])
+
+  // Fetch catches and available species when the selected river changes
+useEffect(() => {
+  if (!feature?.properties?.riverGroup) return
+  Promise.all([
+    getCatchesByRiver(feature.properties.riverGroup),
+    getSpeciesByRiver(feature.properties.name),
+  ]).then(([riverCatches, riverSpecies]) => {
+    setCatches(riverCatches)
+    setAvailableSpecies(riverSpecies.speciesList || [])
+  }).catch((err) => {
+    console.error(err)
+    setError(err.message || 'Failed to load catches or species data.')
+  })
+}, [feature])
 
   // Fetch live weather from open-meteo using the midpoint of the river segment
   useEffect(() => {
@@ -105,6 +112,11 @@ export default function RiverPanel({ feature, group, onClose, onLogCatch }) {
       </div>
 
       <div style={styles.divider} />
+
+      {/* Inline error banner — shown when catches/species/weather fail to load */}
+      {error && (
+        <div style={styles.errorBanner}>{error}</div>
+      )}
 
       {/* Scrollable content below the header */}
       <div style={styles.scrollContent}>
@@ -202,7 +214,7 @@ export default function RiverPanel({ feature, group, onClose, onLogCatch }) {
                       {c.length ? `${c.length}cm` : ''}
                     </div>
                     <div style={styles.catchDate}>
-                      {new Date(c.caughtAt).toLocaleDateString()}
+                      {new Date(c.caughtAt).toLocaleDateString('en-US', { timeZone: 'UTC' })}
                     </div>
                   </div>
                 </div>
@@ -265,6 +277,16 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   divider:    { height: '4px', background: 'var(--bg)', boxShadow: 'inset 0 2px 0 #f4f4f4' },
+  errorBanner: {
+    margin: '10px 16px',
+    padding: '10px 12px',
+    background: '#3a1515',
+    border: '2px solid #ff6060',
+    color: '#ff6060',
+    fontFamily: 'var(--font-pixel)',
+    fontSize: '7px',
+    lineHeight: 1.6,
+  },
   statsBlock: { padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' },
   statRow:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px dashed var(--border)', paddingBottom: '8px' },
   statLabel:  { fontFamily: 'var(--font-pixel)', fontSize: '7px', color: 'var(--text-muted)' },
