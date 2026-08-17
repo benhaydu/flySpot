@@ -7,57 +7,63 @@ caching, real `riverId`/`riverGroup` FK on catches), and Step 5's core
 Carried over from v1: deployment (old Step 3, deferred) and the general
 UX-polish bucket (old Step 6), now broken into concrete steps below.
 
+Steps 1–4 below are now **done** too, along with the stats-page bullet from
+Step 7 (delivered as the Pokédex's STATS tab). Remaining work starts at
+Step 5.
+
 Steps are roughly ordered: bugs first, then the map/UX work, then features,
 then deployment last (some features depend on it).
 
 ---
 
-## Step 1 — Bug fixes & hardening (small, do first)
+## Step 1 — Bug fixes & hardening (small, do first) — ✅ DONE
 
 Known real bugs found in the audit:
 
-- **Catch date off-by-one (UTC bug).** `LogCatch.jsx` defaults the date to
+- [x] **Catch date off-by-one (UTC bug).** `LogCatch.jsx` defaults the date to
   `new Date().toISOString().split('T')[0]` — that's the **UTC** date, so any
   catch logged after ~5pm Pacific defaults to *tomorrow*. Worse, the date-only
   string ("2026-08-16") is stored as UTC midnight, and
   `new Date(c.caughtAt).toLocaleDateString()` in `RiverPanel.jsx` renders that
   as the **previous day** in Pacific time. Log a catch today, see yesterday's
   date on it.
-- **Pokedex has no error handling.** `Promise.all([getAllSpecies(),
+- [x] **Pokedex has no error handling.** `Promise.all([getAllSpecies(),
   getMyCatches()])` has no `.catch` — since `getMyCatches` requires auth, an
   expired session leaves the Pokédex stuck on "LOADING..." forever (and an
   unhandled promise rejection in the console).
-- **LogCatch species fetch has no error handling.** `getAllSpecies().then(setSpecies)`
+- [x] **LogCatch species fetch has no error handling.** `getAllSpecies().then(setSpecies)`
   — same pattern, no `.catch`; a failure silently shows "NO RESULTS".
-- **No React error boundary.** Any uncaught render error still unmounts the
+- [x] **No React error boundary.** Any uncaught render error still unmounts the
   whole tree to a dark-blue screen (this bit us twice already). Add a
   top-level `<ErrorBoundary>` with a "something broke — reload" screen.
-- **Dead code: the entire `/api/rivers` stack.** `routes/rivers.js`,
+- [x] **Dead code: the entire `/api/rivers` stack.** `routes/rivers.js`,
   `riverController.js`, and `models/River.js` (notes/bookmarks keyed by osmId)
   are never called by the client — and the endpoints are unauthenticated.
   Either delete them or rework into the per-user bookmarks feature (Step 6).
   The stale `URL STRUCTURE` comment at the top of `app.js` goes with it.
-- **Unused `caught` field on the Species model.** Global boolean that can't
+- [x] **Unused `caught` field on the Species model.** Global boolean that can't
   represent per-user state (that's what Catch is for). Remove.
-- **No validation on catch numbers.** Negative/absurd weight and length are
+- [x] **No validation on catch numbers.** Negative/absurd weight and length are
   accepted. Add min/max validation in the schema or controller.
-- **Seed scripts still have the Windows crash pattern.** `seedFishData.js` and
+- [x] **Seed scripts still have the Windows crash pattern.** `seedFishData.js` and
   `parseRegulations.js` end with unawaited `mongoose.disconnect()` (and
   `parseRegulations` uses `process.exit(1)`) — same libuv assertion risk we
   fixed in `seedWaterways.js`. Apply the same fix (await disconnect,
   `process.exitCode`, consume response bodies on error paths).
-- **CI runs on deprecated Node 20.** Bump `ci.yml` to Node 22 (or 24, to
+- [x] **CI runs on deprecated Node 20.** Bump `ci.yml` to Node 22 (or 24, to
   match the dev machine).
-- **Tests only cover auth.** Add supertest coverage for `/api/waterways`,
+- [ ] **Tests only cover auth.** Add supertest coverage for `/api/waterways`,
   `/api/catches` (log + fetch by riverGroup), and `/api/fish/species`.
+  *Still open — the only leftover item from this step.*
 
 Done when: dates display correctly evening-and-morning, every fetch in the
 client has a failure path, a thrown render error shows a recovery screen
 instead of a blank map, dead code is gone, CI is green on a supported Node.
+**All met except the new test coverage.**
 
-## Step 2 — Map interaction fixes
+## Step 2 — Map interaction fixes — ✅ DONE
 
-- **Hover highlight lag.** On every distinct hover, `MapView.jsx` scans all
+- [x] **Hover highlight lag.** On every distinct hover, `MapView.jsx` scans all
   ~11.9k features in JS to build an ID array, then hands MapLibre a giant
   `['in', 'id', [...]]` literal filter. Replace with a direct filter on the
   shared group key — `['==', ['get', 'riverGroup'], groupKey]` — which
@@ -65,54 +71,69 @@ instead of a blank map, dead code is gone, CI is green on a supported Node.
   natively per-feature). Same change for the selected layer (pass the
   riverGroup down instead of `selectedIds`). Consider `feature-state` if
   filter swaps still feel slow after that.
-- **RiverPanel covers the stats bar and map zoom controls.** When the panel
+- [x] **RiverPanel covers the stats bar and map zoom controls.** When the panel
   slides in (300px, right side), move the NavigationControl to top-left (or
   shift it left when a river is selected) and let the stats bar wrap or
-  compress instead of sitting under the panel.
-- **River name labels on zoom.** Add a MapLibre `symbol` layer over the
+  compress instead of sitting under the panel. *(The old stats bar was
+  later removed entirely — see Step 7 — so this ended up being just the
+  zoom-control shift, tuned to sit close against the panel edge.)*
+- [x] **River name labels on zoom.** Add a MapLibre `symbol` layer over the
   waterways source (`text-field: ['get', 'name']`, `symbol-placement: 'line'`)
   with a `minzoom` (~10–11) so names fade in once you're close enough. Filter
-  to named features only.
+  to named features only. *(Rivers ended up needing a separate point-based
+  label source — line-placed labels can't fit text on a low-zoom river that
+  only spans a few screen pixels. Creeks kept the line-placed approach.)*
 
 Done when: hovering feels instant while panning fast, nothing important is
 hidden when the panel is open, and zooming into a river shows its name along
-the line.
+the line. **Met.**
 
-## Step 3 — River search
+## Step 3 — River search — ✅ DONE
 
-- Search box (top bar) to find a river by name. All waterway data is already
+- [x] Search box (top bar) to find a river by name. All waterway data is already
   loaded client-side, so this can be a pure client-side index: build a
   `Map<riverGroup, {name, bbox}>` once after load, filter as the user types,
   and on selection `map.fitBounds()` to the group's combined bbox + select it.
-- Server `/api/waterways/search?q=` endpoint is only needed later if the
+- [x] Server `/api/waterways/search?q=` endpoint is only needed later if the
   client ever stops loading the full dataset (e.g. vector tiles). Don't build
-  it before it's needed.
+  it before it's needed. *(Not built — client-side index is fast enough.)*
 
 Done when: typing "cow" surfaces Cowichan River, choosing it flies the map
-there and opens its panel.
+there and opens its panel. **Met.**
 
-## Step 4 — Regulations, completed
+## Step 4 — Regulations, completed — ✅ DONE
 
-Currently nothing displays. Complete the pipeline:
-
-- **Verify the data actually matches.** `parseRegulations.js` matches PDF
+- [x] **Verify the data actually matches.** `parseRegulations.js` matches PDF
   names against `RiverSpecies.riverName` (BC gazetted names), but the client
   queries by the **OSM** river name. Audit how many regulations actually
   resolve for rivers that exist on the map; re-key matching to OSM
   names/riverGroups where they differ. Re-run the seed and confirm via
   `/api/regulations/<name>` for a handful of known rivers.
-- **Structured closures, not just rule strings.** Parse closure date ranges
+  *(Both `RiverSpecies` and `Regulation` now carry a real `riverGroup` field,
+  matched at seed time against `Waterway` via a shared `matchRiverGroup`
+  helper. Also found and fixed a real pdf-parse bug along the way: one of
+  the PDF's embedded-font glyphs was extracting as a stray Private Use Area
+  codepoint standing in for the digit "1", which silently broke entry-
+  boundary detection for any water body whose mgmt unit started with "1" —
+  Quinsam River and Craigflower Creek were two rivers this was hiding
+  entirely.)*
+- [x] **Structured closures, not just rule strings.** Parse closure date ranges
   out of the rule text into fields (`closedFrom`/`closedTo`, or a list of
   `{start, end, description}`) so the app can *reason* about them, not just
-  display them.
-- **Closed-river indicator on the map.** If today falls inside a closure
+  display them. *(`server/src/utils/closures.js` — `extractClosures()` parses
+  month/day ranges out of "No Fishing" clauses, filtering out
+  section-specific closures like "from X to Y" or "in tributaries" so only
+  whole-river closures get flagged.)*
+- [x] **Closed-river indicator on the map.** If today falls inside a closure
   window, render that river differently (e.g. red/desaturated line + a
   "CLOSED" tag in RiverPanel). Requires a small join: client asks the server
   for currently-closed riverGroups (`/api/regulations/closed-today`) and adds
-  a map filter/layer for them.
+  a map filter/layer for them. *(Dashed red line overlay on the map, plus a
+  blinking CLOSED tag in RiverPanel.)*
 
 Done when: a river with special rules shows them in the panel, and a river
 closed today is visibly different on the map before you even click it.
+**Met.**
 
 ## Step 5 — Fish run timing (seasonality)
 
@@ -150,8 +171,12 @@ Done when: "Coho, near me" flies the map to a real, plausible river.
   (owner-checked), plus UI on the catch cards.
 - **Per-user river bookmarks/notes** — resurrect the dead River-model idea
   properly: authenticated, keyed to `userId` + `riverGroup`.
-- **Stats page**: catches per species/month/river, biggest fish, first-catch
+- [x] **Stats page**: catches per species/month/river, biggest fish, first-catch
   dates. The Pokédex completion meter already exists; give it somewhere to go.
+  *(Delivered as a STATS tab inside the Pokédex: total catches, unique
+  species, longest/heaviest personal records, top river, and a GitHub-style
+  84-day activity heatmap — all backed by a single `$facet` aggregation
+  query on `Catch`.)*
 - Catch photos (needs object storage — pairs naturally with deployment).
 
 ## Step 8 — UI overhaul
