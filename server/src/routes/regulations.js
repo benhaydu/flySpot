@@ -1,9 +1,10 @@
 import { Router } from 'express'
-import { getRegulationsByRiver } from '../controllers/regulationController.js'
+import { getRegulationsByRiver, getClosedToday } from '../controllers/regulationController.js'
 import { asyncHandler } from '../middleware/asyncHandler.js'
 
 const router = Router()
 
-router.get('/:riverName', asyncHandler(getRegulationsByRiver))
+router.get('/closed-today', asyncHandler(getClosedToday))
+router.get('/:riverGroup', asyncHandler(getRegulationsByRiver))
 
 export default router

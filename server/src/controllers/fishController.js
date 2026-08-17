@@ -7,8 +7,8 @@ export const getAllSpecies = async (req, res) => {
 };
 
 export const getSpeciesByRiver = async (req, res) => {
-  const riverName = req.params.name.toLowerCase().trim();
-  const result = await RiverSpecies.findOne({ riverName });
-  if (!result) return res.json({ riverName, speciesList: [] });
+  const riverGroup = req.params.riverGroup.toLowerCase().trim();
+  const result = await RiverSpecies.findOne({ riverGroup });
+  if (!result) return res.json({ riverGroup, speciesList: [] });
   res.json(result);
 };

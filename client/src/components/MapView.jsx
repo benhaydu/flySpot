@@ -64,6 +64,7 @@ const LAYER_IDS = {
   rivers:       'waterways-river',
   streams:      'waterways-stream',
   riversCasing: 'waterways-river-casing',
+  closed:       'waterways-closed',
   hover:        'waterways-hover',
   selected:     'waterways-selected',
   riverLabels:  'waterway-river-labels',
@@ -103,7 +104,7 @@ function buildRiverLabelPoints(featureCollection) {
   }
 }
 
-export default function MapView({ waterways, onSelectFeature, selectedRiverGroup, panelOpen, onMapReady }) {
+export default function MapView({ waterways, onSelectFeature, selectedRiverGroup, panelOpen, onMapReady, closedRiverGroups = [] }) {
   const containerRef  = useRef(null) // the <div> the map is mounted into
   const mapRef        = useRef(null) // MapLibre Map instance
   const hoveredKeyRef = useRef(null) // riverGroup key currently under the cursor
@@ -195,6 +196,17 @@ export default function MapView({ waterways, onSelectFeature, selectedRiverGroup
           'line-color': '#3d9be9', // Pokemon water blue
           'line-width': ['interpolate', ['linear'], ['zoom'], 7, 2, 10, 4, 14, 7],
           'line-opacity': 1,
+        },
+      })
+
+      // Layer — Closed-to-fishing indicator (dashed red overlay, updated by Effect 5)
+      map.addLayer({
+        id: LAYER_IDS.closed, type: 'line', source: 'waterways',
+        filter: false,
+        paint: {
+          'line-color': '#e83232', // matches --accent-red
+          'line-width': ['interpolate', ['linear'], ['zoom'], 7, 3, 10, 5, 14, 8],
+          'line-dasharray': [2, 2],
         },
       })
 
@@ -322,6 +334,18 @@ export default function MapView({ waterways, onSelectFeature, selectedRiverGroup
       selectedRiverGroup ? ['==', ['get', 'riverGroup'], selectedRiverGroup] : false
     )
   }, [selectedRiverGroup])
+
+  // ── Effect 5: Sync closed-river indicator ────────────────────────────────
+  // Whenever the parent's closed-today list changes, update which rivers
+  // get the dashed red overlay.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.getLayer(LAYER_IDS.closed)) return
+    map.setFilter(
+      LAYER_IDS.closed,
+      closedRiverGroups.length ? ['in', ['get', 'riverGroup'], ['literal', closedRiverGroups]] : false
+    )
+  }, [closedRiverGroups])
 
   // ── Render ────────────────────────────────────────────────────────────────
   // The map is mounted into this div via the MapLibre constructor above.

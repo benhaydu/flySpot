@@ -6,7 +6,9 @@ import { createRequire } from 'module'
 import mongoose from 'mongoose'
 import { connectDB } from '../db.js'
 import Regulation from '../models/Regulation.js'
-import RiverSpecies from '../models/RiverSpecies.js'
+import Waterway from '../models/Waterway.js'
+import { matchRiverGroup } from '../utils/matchRiverGroup.js'
+import { extractClosures } from '../utils/closures.js'
 
 const require  = createRequire(import.meta.url)
 const pdfParse = require('pdf-parse/lib/pdf-parse.js')
@@ -79,32 +81,6 @@ function parseEntries(sectionText) {
   return entries
 }
 
-// ── Match PDF water body name to a DB river name ──────────────────────────────
-function matchToDb(pdfName, dbSet) {
-  const normalized = pdfName
-    .toLowerCase()
-    .replace(/['"]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (dbSet.has(normalized)) return normalized
-
-  // Strip parenthetical qualifiers: "ADAM RIVER (except Eve River)" → "adam river"
-  const withoutParens = normalized.replace(/\s*\(.*?\)/g, '').trim()
-  if (dbSet.has(withoutParens)) return withoutParens
-
-  // Strip leading "LOWER " / "UPPER " / "(LOWER) "
-  const stripped = withoutParens.replace(/^(lower|upper|middle|north|south|east|west)\s+/i, '').trim()
-  if (dbSet.has(stripped)) return stripped
-
-  // Try prefix match: DB name starts with our normalized name
-  for (const dbName of dbSet) {
-    if (dbName.startsWith(withoutParens) || withoutParens.startsWith(dbName)) return dbName
-  }
-
-  return null
-}
-
 async function main() {
   // ── Step 1: Extract PDF text ───────────────────────────────────────────────
   console.log('Reading PDF...')
@@ -113,8 +89,19 @@ async function main() {
     process.exit(1)
   }
 
-  const buffer   = fs.readFileSync(PDF_PATH)
-  const { text } = await pdfParse(buffer)
+  const buffer            = fs.readFileSync(PDF_PATH)
+  const { text: rawText } = await pdfParse(buffer)
+
+  // pdf-parse renders one of this PDF's embedded-font glyphs as the Private
+  // Use Area codepoint U+F0DC instead of a real character. It's this PDF's
+  // "1" glyph, and it's always immediately followed by a duplicate ASCII
+  // "1" — so it must be deleted, not replaced, or every "1-N" mgmt unit
+  // doubles into "11-N". Left unfixed, any entry whose mgmt unit starts
+  // with "1" fails the header regex (`\d` doesn't match a PUA codepoint)
+  // and silently gets swallowed as a continuation line of whichever entry
+  // came before it — which is why Quinsam River and Craigflower Creek
+  // never showed up as their own regulation entries.
+  const text = rawText.replace(//g, '')
 
   fs.writeFileSync(DUMP_PATH, text, 'utf8')
   console.log(`Raw text saved → ${DUMP_PATH}  (${text.length.toLocaleString()} chars)`)
@@ -142,19 +129,20 @@ async function main() {
   }
 
   // ── Step 3: Load known river names from DB ────────────────────────────────
+ // ── Step 3: Load known river groups from the map data ─────────────────────
   await connectDB()
-  const riverDocs = await RiverSpecies.find({}, 'riverName')
-  const dbSet     = new Set(riverDocs.map(r => r.riverName))
-  console.log(`Loaded ${dbSet.size} rivers from DB`)
+  const waterwayDocs  = await Waterway.find({}, 'riverGroup')
+  const riverGroupSet = new Set(waterwayDocs.map(w => w.riverGroup))
+  console.log(`Loaded ${riverGroupSet.size} river groups from Waterway`)
 
   // ── Step 4: Match and save ─────────────────────────────────────────────────
   const matched   = []
   const unmatched = []
 
   for (const entry of entries) {
-    const riverName = matchToDb(entry.pdfName, dbSet)
-    if (riverName) {
-      matched.push({ ...entry, riverName })
+    const riverGroup = matchRiverGroup(entry.pdfName, riverGroupSet)
+    if (riverGroup) {
+      matched.push({ ...entry, riverGroup })
     } else {
       unmatched.push(entry.pdfName)
     }
@@ -163,14 +151,14 @@ async function main() {
   console.log(`Matched: ${matched.length} / ${entries.length}`)
   console.log(`Unmatched: ${unmatched.length}`)
   if (unmatched.length) {
-    console.log('--- Unmatched water bodies (not in your river DB) ---')
+    console.log('--- Unmatched water bodies (not on the map) ---')
     unmatched.forEach(n => console.log('  ·', n))
   }
-
-  // ── Step 5: Wipe old and save new ─────────────────────────────────────────
+// ── Step 5: Wipe old and save new ─────────────────────────────────────────
   await Regulation.deleteMany({})
-  for (const { riverName, pdfName, mgmtUnit, rules } of matched) {
-    await Regulation.create({ riverName, pdfName, mgmtUnit, rules, year: new Date().getFullYear() })
+  for (const { riverGroup, pdfName, mgmtUnit, rules } of matched) {
+    const closures = rules.flatMap(extractClosures)
+    await Regulation.create({ riverGroup, riverName: pdfName.toLowerCase(), pdfName, mgmtUnit, rules, closures, year: new Date().getFullYear() })
   }
 
   console.log('Done! Regulations seeded.')

@@ -25,7 +25,7 @@ const WATERWAY_LABELS = {
   tidal_channel: 'Tidal Channel',
 }
 
-export default function RiverPanel({ feature, group, onClose, onLogCatch }) {
+export default function RiverPanel({ feature, group, onClose, onLogCatch, isClosed }) {
   const [catches, setCatches]                   = useState([])
   const [availableSpecies, setAvailableSpecies] = useState([])
   const [weather, setWeather]                   = useState(null)
@@ -42,7 +42,7 @@ useEffect(() => {
   if (!feature?.properties?.riverGroup) return
   Promise.all([
     getCatchesByRiver(feature.properties.riverGroup),
-    getSpeciesByRiver(feature.properties.name),
+    getSpeciesByRiver(feature.properties.riverGroup),
   ]).then(([riverCatches, riverSpecies]) => {
     setCatches(riverCatches)
     setAvailableSpecies(riverSpecies.speciesList || [])
@@ -73,9 +73,9 @@ useEffect(() => {
 
   // Fetch BC fishing regulations for this river
   useEffect(() => {
-    if (!feature?.properties?.name) { setRegulations(null); return }
+    if (!feature?.properties?.riverGroup) { setRegulations(null); return }
     setRegulations(undefined)
-    getRegulationsByRiver(feature.properties.name.toLowerCase())
+    getRegulationsByRiver(feature.properties.riverGroup)
       .then(setRegulations)
       .catch(() => setRegulations(null))
   }, [feature])
@@ -105,6 +105,7 @@ useEffect(() => {
       {/* Fixed header — stays visible while content below scrolls */}
       <div style={styles.header}>
         <div style={styles.typeTag}>★ {label.toUpperCase()} ★</div>
+        {isClosed && <div style={styles.closedTag}>⛔ CLOSED TO FISHING RIGHT NOW</div>}
         <div style={styles.titleRow}>
           <h2 style={styles.title}>{displayName}</h2>
           <button style={styles.closeBtn} onClick={onClose} aria-label="Close">Back</button>
@@ -251,6 +252,11 @@ function StatRow({ label, value, color }) {
 }
 
 const styles = {
+  closedTag: {
+    fontFamily: 'var(--font-pixel)', fontSize: '7px', color: '#fff',
+    background: 'var(--accent-red)', padding: '6px 8px', marginTop: '4px',
+    letterSpacing: '0.05em', animation: 'blink 1.2s steps(1) infinite',
+  },
   panel: {
     position: 'absolute', top: 0, right: 0,
     width: '300px', height: '100%',

@@ -7,6 +7,7 @@ import Pokedex     from './components/Pokedex.jsx'
 import LogCatch    from './components/LogCatch.jsx'
 import RiverSearch from './components/RiverSearch.jsx'
 import { fetchWaterways } from './api/waterways.js'
+import { getClosedToday } from './api/regulations.js'
 import { useAuth } from './hooks/useAuth';
 import AuthPage from './components/AuthPage';
 
@@ -37,6 +38,10 @@ export default function App() {
   // Used by handleSearchSelect to fitBounds() when a search result is picked.
   const mapInstanceRef = useRef(null)
 
+  // Rivers currently closed to fishing — feeds the map's dashed-red overlay
+  // and the panel's CLOSED tag.
+  const [closedRiverGroups, setClosedRiverGroups] = useState([])
+
   const { token, saveToken, logout } = useAuth()
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -60,6 +65,15 @@ export default function App() {
         setLoadingMsg(null)
         setError('Failed to load waterway data. Check your connection and try refreshing.')
       })
+  }, [token])
+
+  // Fetch which rivers are currently closed to fishing — used by the map's
+  // closed-river overlay and the panel's CLOSED tag.
+  useEffect(() => {
+    if (!token) return
+    getClosedToday()
+      .then(setClosedRiverGroups)
+      .catch((err) => console.error('Failed to load closed-river list', err))
   }, [token])
 
   // Search index: one entry per named river/stream group, built once after
@@ -128,6 +142,7 @@ export default function App() {
         selectedRiverGroup={selectedFeature?.representative?.properties?.riverGroup ?? null}
         panelOpen={!!selectedFeature}
         onMapReady={(map) => { mapInstanceRef.current = map }}
+        closedRiverGroups={closedRiverGroups}
         />
 
       {/* ── Top bar ─────────────────────────────────────────────────────────
@@ -190,6 +205,7 @@ export default function App() {
             group={selectedFeature.group}
             onClose={() => setSelectedFeature(null)}
             onLogCatch={() => setShowLogCatch(true)}
+            isClosed={closedRiverGroups.includes(selectedFeature.representative.properties.riverGroup)}
           />
         </>
       )}

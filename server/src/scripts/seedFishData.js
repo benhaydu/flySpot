@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { connectDB } from '../db.js';
 import Species from '../models/Species.js';
 import RiverSpecies from '../models/RiverSpecies.js';
+import Waterway from '../models/Waterway.js'
+import { matchRiverGroup } from '../utils/matchRiverGroup.js'
 
 const WFS_URL = 'https://openmaps.gov.bc.ca/geo/pub/WHSE_FISH.FISS_FISH_OBSRVTN_PNT_SP/ows';
 
@@ -92,14 +94,20 @@ async function seed() {
     await Species.findOneAndUpdate({ code }, { code, name }, { upsert: true });
   }
 
-  // Save river→species mappings
+// Match each BC-gazetted river name to a real OSM riverGroup so the
+  // client (which only knows riverGroup) can actually look these up.
+  const waterwayDocs  = await Waterway.find({}, 'riverGroup')
+  const riverGroupSet = new Set(waterwayDocs.map(w => w.riverGroup))
+
   console.log(`Saving ${Object.keys(riverSpeciesMap).length} rivers...`);
+  let matchedCount = 0
   for (const [riverName, speciesObj] of Object.entries(riverSpeciesMap)) {
     const speciesList = Object.entries(speciesObj).map(([code, name]) => ({ code, name }));
-    await RiverSpecies.findOneAndUpdate({ riverName }, { riverName, speciesList }, { upsert: true });
+    const riverGroup  = matchRiverGroup(riverName, riverGroupSet)
+    if (riverGroup) matchedCount++
+    await RiverSpecies.findOneAndUpdate({ riverName }, { riverName, riverGroup, speciesList }, { upsert: true });
   }
-
-  console.log('Done!');
+  console.log(`Matched ${matchedCount} / ${Object.keys(riverSpeciesMap).length} rivers to a map riverGroup`)
   await mongoose.disconnect();
 }
 
